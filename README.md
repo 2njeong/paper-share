@@ -69,23 +69,23 @@ share_paper 호출
 
 같은 경로의 반대 방향: "~주제 논문 찾아줘" → `search_papers` 호출 → 같은 Edge Function이 노션에 조건 쿼리 → 결과 목록을 Claude가 정리해서 보여줌. 서버는 목록만 반환하고, "이게 왜 관련 있는지" 설명은 사용자의 Claude가 담당함.
 
-**③ 주간 다이제스트 (DB → Teams, 현재 보류)**
+**③ 주간 다이제스트 (DB → Teams)**
 
 ```
-(예정) 매주 자동 실행
+매주 금요일 11:00(KST), Supabase pg_cron이 자동 실행
         │
         ▼
 Supabase의 또 다른 함수(paper-share-digest)가
 노션에서 최근 7일 공유 논문 조회
         │
         ▼
-주제별로 묶어 어댑티브 카드 생성
+주제별로 묶어 어댑티브 카드 생성 (channel 폭 전체로 표시)
         │
         ▼
-Teams 웹훅으로 POST  ← 기관 보안정책(OAuth 요구)에 막혀있음
+Teams 웹훅으로 POST
         │
         ▼
-팀 채널에 게시
+팀 채널(journal-club)에 게시
 ```
 
 ## 구성
@@ -93,7 +93,7 @@ Teams 웹훅으로 POST  ← 기관 보안정책(OAuth 요구)에 막혀있음
 | 경로 | 내용 |
 |---|---|
 | `supabase/functions/paper-share/` | MCP 서버 — `find_paper`, `get_options`, `share_paper`, `search_papers` 4개 도구 |
-| `supabase/functions/paper-share-digest/` | 주간 Teams 다이제스트 (어댑티브 카드 생성까지 완료, 실제 게시는 기관 인증 정책 보완 중) |
+| `supabase/functions/paper-share-digest/` | 주간 Teams 다이제스트 — 어댑티브 카드 생성·게시, pg_cron으로 매주 금요일 11:00(KST) 자동 실행 |
 | `supabase/migrations/` | `team_members` 테이블 스키마 |
 | `skills/paper-share/SKILL.md` | 팀원 Claude에 설치하는 스킬 — 올리기·찾기 절차 |
 | `docs/notion-db-design.md` | 노션 DB 속성·뷰·도구 설계 |
@@ -105,12 +105,7 @@ Teams 웹훅으로 POST  ← 기관 보안정책(OAuth 요구)에 막혀있음
 - 같은 사람이 같은 논문 재공유 시 거절 — 정상
 - 태그·조건 검색 — 정상
 - Claude Code 커스텀 MCP 커넥터로 실제 연결 및 호출 확인 (`claude mcp add --transport http`)
-
-## 진행 중
-
-- 주간 Teams 다이제스트 실제 게시: Power Automate 트리거가 익명 웹훅 호출에 OAuth 인증을 요구해(`DirectApiAuthorizationRequired`) 막혀 있음. 요청은 호출자(사용자) 네트워크가 아니라 Supabase 서버에서 나가므로 네트워크 위치와는 무관함을 확인함. 트리거 자체의 "설정" 탭에는 인증 방식을 바꿀 옵션이 없어, 기관 IT의 정책 예외 승인 또는 Microsoft Graph API(앱 등록 + 관리자 동의) 전환이 필요함
-- 그 사이에는 다이제스트 함수가 만든 메시지를 사람이 그대로 복사해 Teams에 수동으로 게시하는 방식으로 대체
-- pg_cron 기반 주간 스케줄 등록은 다이제스트 게시 보완 이후 진행 예정
+- 주간 Teams 다이제스트 실제 게시 — 정상, pg_cron으로 매주 금요일 11:00(KST) 자동 실행
 
 ## 함께 보면 좋은 프로젝트
 

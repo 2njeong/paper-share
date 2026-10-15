@@ -54,6 +54,34 @@ function esc(s: string) {
   return (s ?? "").replace(/([\\`*_\[\]])/g, "\\$1");
 }
 
+function paperContainer(p: any, isFirstInCard: boolean) {
+  const summary = textProp(p.properties["한줄요약"]?.rich_text);
+  const comment = textProp(p.properties["추천코멘트"]?.rich_text);
+  const tags = multiSelectOf(p, "태그");
+
+  const facts: any[] = [];
+  if (summary) facts.push({ title: "요약", value: esc(summary) });
+  if (comment) facts.push({ title: "추천", value: esc(comment) });
+  if (tags.length) facts.push({ title: "태그", value: esc(tags.join(", ")) });
+
+  const items: any[] = [
+    { type: "TextBlock", text: `📄 ${esc(titleOf(p))}`, weight: "bolder", wrap: true },
+  ];
+  if (facts.length) items.push({ type: "FactSet", facts, spacing: "small" });
+  items.push({
+    type: "TextBlock",
+    text: `[🔗 노션에서 보기](${p.url})`,
+    wrap: true, isSubtle: true, size: "small", spacing: "small",
+  });
+
+  return {
+    type: "Container",
+    spacing: "medium",
+    separator: !isFirstInCard, // 두 번째 논문부터 위에 구분선
+    items,
+  };
+}
+
 function buildAdaptiveCard(pages: any[]) {
   const groups = new Map<string, any[]>();
   for (const p of pages) {
@@ -64,26 +92,27 @@ function buildAdaptiveCard(pages: any[]) {
   const body: any[] = [
     { type: "TextBlock", text: `📚 이번 주 공유 논문 (${pages.length}편)`, weight: "bolder", size: "medium", wrap: true },
   ];
+  let isFirstGroup = true;
   for (const [topic, items] of groups) {
-    body.push({ type: "TextBlock", text: `**[${esc(topic)}]**`, wrap: true, spacing: "medium" });
-    for (const p of items) {
-      const summary = textProp(p.properties["한줄요약"]?.rich_text);
-      const comment = textProp(p.properties["추천코멘트"]?.rich_text);
-      const tags = multiSelectOf(p, "태그");
-      body.push({ type: "TextBlock", text: `• **${esc(titleOf(p))}** — ${esc(summary)}`, wrap: true, spacing: "small" });
-      if (comment) body.push({ type: "TextBlock", text: esc(comment), wrap: true, isSubtle: true, spacing: "none" });
-      body.push({
-        type: "TextBlock",
-        text: `🏷 ${esc(tags.join(", "))} · [노션에서 보기](${p.url})`,
-        wrap: true, isSubtle: true, size: "small", spacing: "none",
-      });
-    }
+    body.push({
+      type: "TextBlock", text: `${esc(topic)}`, weight: "bolder", color: "accent",
+      wrap: true, spacing: "large", separator: !isFirstGroup,
+    });
+    items.forEach((p, idx) => {
+      // 주제 제목 바로 아래 첫 논문은 구분선 없이(제목이 이미 구분 역할), 같은 주제의 두 번째 논문부터는 구분선
+      body.push(paperContainer(p, idx === 0));
+    });
+    isFirstGroup = false;
   }
-  body.push({ type: "TextBlock", text: `[전체 보기](${WEEK_VIEW_URL})`, wrap: true, spacing: "medium" });
+  body.push({
+    type: "TextBlock", text: `[📂 논문 공유 DB로 바로가기](${WEEK_VIEW_URL})`,
+    wrap: true, spacing: "large", separator: true,
+  });
   return {
     type: "AdaptiveCard",
     $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
     version: "1.4",
+    msteams: { width: "full" }, // Teams 전용 확장: 카드를 채널 폭 전체로 넓힘
     body,
   };
 }
