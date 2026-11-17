@@ -72,6 +72,9 @@ function multiSelectOf(page: any, prop: string): string[] {
 function pageUrl(page: any): string {
   return page.url;
 }
+function apaCitationOf(page: any): string {
+  return textProp(page.properties["APA인용"]?.rich_text);
+}
 
 // ---- Auth (팀원 식별은 전적으로 서버가 관리하는 API 키로만 한다. 노션 계정 유무와 무관) -------
 async function hashKey(key: string): Promise<string> {
@@ -106,7 +109,13 @@ async function findPaper(args: any) {
   const pages = await queryDataSource(filter, 5);
   if (!pages.length) return { found: false };
   const page = pages[0];
-  return { found: true, title: titleOf(page), url: pageUrl(page), sharers: multiSelectOf(page, "공유자") };
+  return {
+    found: true,
+    title: titleOf(page),
+    apa_citation: apaCitationOf(page),
+    url: pageUrl(page),
+    sharers: multiSelectOf(page, "공유자"),
+  };
 }
 
 // ---- Tool: get_options -----------------------------------------------------
@@ -163,6 +172,7 @@ async function sharePaper(args: any, caller: { name: string }) {
   const studyType = RESEARCH_TYPE_OPTIONS.includes(args.study_type) ? args.study_type : "other";
   const topic = args.topic && String(args.topic).trim() ? String(args.topic).trim() : "기타";
   const tags = [...new Set((args.tags ?? []).map((t: string) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 10) as string[];
+  const apaCitation = args.apa_citation && String(args.apa_citation).trim() ? String(args.apa_citation).trim() : "";
 
   let page: any = null;
   if (args.pmid) {
@@ -183,16 +193,19 @@ async function sharePaper(args: any, caller: { name: string }) {
     const newComment = `${prevComment ? prevComment + "\n" : ""}${caller.name}: ${args.comment}`.slice(0, 2000);
     const mergedTags = [...new Set([...multiSelectOf(page, "태그"), ...tags])];
     const mergedSharers = [...sharers, caller.name];
+    const properties: Record<string, unknown> = {
+      "추천코멘트": { rich_text: [{ text: { content: newComment } }] },
+      "태그": { multi_select: mergedTags.map((name) => ({ name })) },
+      "공유자": { multi_select: mergedSharers.map((name) => ({ name })) },
+      "최근공유일": { date: { start: new Date().toISOString() } },
+    };
+    // 기존 레코드에 APA인용이 비어 있고 이번에 값이 들어오면 채움. 이미 있으면 덮어쓰지 않음.
+    if (apaCitation && !apaCitationOf(page)) {
+      properties["APA인용"] = { rich_text: [{ text: { content: apaCitation } }] };
+    }
     await notionFetch(`/pages/${page.id}`, {
       method: "PATCH",
-      body: JSON.stringify({
-        properties: {
-          "추천코멘트": { rich_text: [{ text: { content: newComment } }] },
-          "태그": { multi_select: mergedTags.map((name) => ({ name })) },
-          "공유자": { multi_select: mergedSharers.map((name) => ({ name })) },
-          "최근공유일": { date: { start: new Date().toISOString() } },
-        },
-      }),
+      body: JSON.stringify({ properties }),
     });
     if (args.note && String(args.note).trim()) {
       await notionFetch(`/blocks/${page.id}/children`, {
@@ -210,6 +223,7 @@ async function sharePaper(args: any, caller: { name: string }) {
 
   const properties: Record<string, unknown> = {
     "제목": { title: [{ text: { content: args.title || "(제목 없음)" } }] },
+    "APA인용": { rich_text: apaCitation ? [{ text: { content: apaCitation } }] : [] },
     "PMID": { rich_text: args.pmid ? [{ text: { content: String(args.pmid) } }] : [] },
     "DOI": { rich_text: args.doi ? [{ text: { content: String(args.doi).toLowerCase() } }] : [] },
     "저널": { rich_text: args.journal ? [{ text: { content: args.journal } }] : [] },
@@ -263,6 +277,7 @@ async function searchPapers(args: any) {
 
   const results = pages.map((p) => ({
     title: titleOf(p),
+    apa_citation: apaCitationOf(p),
     summary: textProp(p.properties["한줄요약"]?.rich_text),
     tags: multiSelectOf(p, "태그"),
     topic: selectOf(p, "관련연구주제"),
@@ -296,6 +311,7 @@ const TOOLS = [
       properties: {
         pmid: { type: "string" }, doi: { type: "string" }, title: { type: "string" },
         journal: { type: "string" }, year: { type: "number" }, link: { type: "string" },
+        apa_citation: { type: "string", description: "APA 7판 전체 인용 (저자, 연도, 제목, 저널, 권(호), 페이지, DOI 포함). PubMed/CrossRef 조회 후 구성해서 전달" },
         research_question: { type: "string" }, methods: { type: "string" },
         key_results: { type: "string" }, limitations: { type: "string" }, implications: { type: "string" },
         summary: { type: "string", description: "한줄요약" },
