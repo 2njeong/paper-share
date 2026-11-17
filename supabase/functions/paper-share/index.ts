@@ -75,6 +75,9 @@ function pageUrl(page: any): string {
 function apaCitationOf(page: any): string {
   return textProp(page.properties["APA인용"]?.rich_text);
 }
+function commentOf(page: any): string {
+  return textProp(page.properties["추천코멘트"]?.rich_text);
+}
 
 // ---- Auth (팀원 식별은 전적으로 서버가 관리하는 API 키로만 한다. 노션 계정 유무와 무관) -------
 async function hashKey(key: string): Promise<string> {
@@ -113,6 +116,7 @@ async function findPaper(args: any) {
     found: true,
     title: titleOf(page),
     apa_citation: apaCitationOf(page),
+    comment: commentOf(page),
     url: pageUrl(page),
     sharers: multiSelectOf(page, "공유자"),
   };
@@ -279,6 +283,7 @@ async function searchPapers(args: any) {
     title: titleOf(p),
     apa_citation: apaCitationOf(p),
     summary: textProp(p.properties["한줄요약"]?.rich_text),
+    comment: commentOf(p),
     tags: multiSelectOf(p, "태그"),
     topic: selectOf(p, "관련연구주제"),
     study_type: selectOf(p, "연구유형"),
